@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Video model for raw uploads
+model Video {
+  id        String   @id @default(uuid())
+  title     String
+  genre     String
+  url       String
+  status    String   @default("UPLOADED") // UPLOADED, PROCESSING, READY, FAILED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Movie model
+model Movie {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  genre       String
+  thumbnail   String?
+  videoUrl    String? // HLS master.m3u8 URL
+  streamUrl   String? // Presigned URL for streaming (temporary)
+  status      String   @default("UPLOADING") // UPLOADING, PROCESSING, READY, FAILED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Series model
+model Series {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  genre       String
+  thumbnail   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  seasons Season[]
+}
+
+// Season model
+model Season {
+  id       String @id @default(uuid())
+  number   Int
+  seriesId String
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  episodes Episode[]
+
+  @@unique([seriesId, number])
+}
+
+// Episode model
+model Episode {
+  id        String   @id @default(uuid())
+  title     String
+  number    Int
+  seasonId  String
+  videoUrl  String? // HLS URL
+  streamUrl String? // Presigned URL for streaming (temporary)
+  status    String   @default("UPLOADING") // UPLOADING, PROCESSING, READY, FAILED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, number])
+}
+
+// Watch History model
+model WatchHistory {
+  id          String    @id @default(uuid())
+  deviceId      String
+  contentId   String
+  progress    Int       @default(0) // seconds watched
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([deviceId, contentId])
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WatchProgress {
+  id              String   @id @default(uuid())
+  deviceId        String
+  contentId       String
+  progressSeconds Float
+  durationSeconds Float
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@unique([deviceId, contentId])
+}
