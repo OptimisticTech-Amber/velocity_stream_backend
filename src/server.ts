@@ -128,6 +128,9 @@ app.post("/upload", upload.single("video"), async (req, res) => {
     res.status(500).send("Upload failed");
   }
 });
+app.get("/" ,(req: Request, res: Response) => {
+  res.send("Hello from the upload service!");
+});
 
 app.listen(5000, async () => {
   await connectProducer();
