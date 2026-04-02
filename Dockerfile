@@ -42,9 +42,15 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 # Expose port (adjust based on your server port)
 EXPOSE 5000
 
+# Accept DATABASE_URL as build/runtime argument
+ENV DATABASE_URL=""
+
+# Create startup script with Prisma migrate
+RUN echo '#!/bin/sh\nset -e\necho "Waiting for database..."\nsleep 10\necho "Running Prisma migrations..."\nnpx prisma migrate deploy\necho "Starting application..."\nexec npm start' > /app/start.sh && chmod +x /app/start.sh
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:5000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application with migrations
+CMD ["/app/start.sh"]

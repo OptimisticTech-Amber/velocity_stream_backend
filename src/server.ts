@@ -60,6 +60,20 @@ import seriesRoutes from "./routes/seriesRoutes";
 import continueWatchingRoutes from "./routes/continueWatchingRoutes";
 import cors from "cors";
 import { searchMovies } from "./Controller/SearchController";
+
+// Log environment variables on startup
+console.log("🌍 Environment Configuration:");
+console.log(`  NODE_ENV: ${process.env.NODE_ENV || "development"}`);
+console.log(
+  `  DATABASE_URL: ${process.env.DATABASE_URL ? "✅ Set" : "❌ Not Set"}`,
+);
+console.log(
+  `  KAFKA_BROKER: ${process.env.KAFKA_BROKER || "kafka:9092 (default)"}`,
+);
+console.log(
+  `  REDIS_URL: ${process.env.REDIS_URL || "redis://localhost:6379"}`,
+);
+
 const app = express();
 app.use(cors());
 
@@ -128,10 +142,12 @@ app.post("/upload", upload.single("video"), async (req, res) => {
     res.status(500).send("Upload failed");
   }
 });
-app.get("/" ,(req: Request, res: Response) => {
+app.get("/", (req: Request, res: Response) => {
   res.send("Hello from the upload service!");
 });
-
+app.get("/velocity", (req: Request, res: Response) => {
+  res.send("Hello from the velocity endpoint , watch the videos without ads!");
+});
 app.listen(5000, async () => {
   await connectProducer();
   console.log("Upload service running on port 5000");

@@ -1,4 +1,18 @@
 services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: video_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     environment:
@@ -36,15 +50,6 @@ services:
       timeout: 5s
       retries: 15
       start_period: 30s
-
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: video_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
 
   redis:
     image: redis:7
@@ -86,6 +91,40 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     depends_on:
       - elasticsearch
+    networks:
+      - es_net
+
+  app:
+    build: .
+    container_name: backend-app
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/video_db"
+      KAFKA_BROKER: "kafka:9092"
+      REDIS_URL: "redis://redis:6379"
+      NODE_ENV: "production"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      elasticsearch:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:5000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     networks:
       - es_net
 
