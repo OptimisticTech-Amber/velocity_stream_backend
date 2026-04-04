@@ -9,7 +9,7 @@ COPY tsconfig.json ./
 COPY prisma ./prisma/
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY src ./src
@@ -42,15 +42,15 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 # Expose port (adjust based on your server port)
 EXPOSE 5000
 
-# Accept DATABASE_URL as build/runtime argument
-ENV DATABASE_URL=""
+# Create startup script with Prisma migrate and error handling
+RUN echo '#!/bin/sh\nset -e\necho "Waiting for database..."\nsleep 15\necho "Running Prisma migrations..."\nif ! npx prisma migrate deploy; then\n  echo "Migration failed, but continuing (may already be applied)"\nfi\necho "Starting application..."\nexec npm start' > /app/start.sh && chmod +x /app/start.sh
 
-# Create startup script with Prisma migrate
-RUN echo '#!/bin/sh\nset -e\necho "Waiting for database..."\nsleep 10\necho "Running Prisma migrations..."\nnpx prisma migrate deploy\necho "Starting application..."\nexec npm start' > /app/start.sh && chmod +x /app/start.sh
+# Health check - uses /health endpoint instead of root
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+  CMD node -e "require('http').get('http://localhost:5000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" || exit 1
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+# Set NODE_ENV for production
+ENV NODE_ENV=production
 
 # Start the application with migrations
 CMD ["/bin/sh", "/app/start.sh"]

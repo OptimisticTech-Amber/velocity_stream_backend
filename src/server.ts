@@ -1,65 +1,13 @@
-// import express, { Request, Response } from "express";
-// import multer from "multer";
-// import cors from "cors";
-// import { v4 as uuidv4 } from "uuid";
-// import { sendVideoJob } from "./kafka/producer";
-
-// const app = express();
-// app.use(cors());
-
-// const upload = multer({ dest: "uploads/" });
-
-// type UploadRequest = Request & {
-//   file?: {
-//     path: string;
-//   };
-// };
-
-// app.post(
-//   "/upload",
-//   upload.single("video"),
-//   async (req: UploadRequest, res: Response) => {
-//     try {
-//       if (!req.file) {
-//         res.status(400).json({ error: "No file uploaded" });
-//         return;
-//       }
-
-//       const videoId = uuidv4();
-
-//       await sendVideoJob({
-//         videoId,
-//         filePath: req.file.path,
-//       });
-
-//       res.json({
-//         message: "Upload successful. Processing started.",
-//         videoId,
-//       });
-//     } catch {
-//       res.status(500).json({ error: "Upload failed" });
-//     }
-//   },
-// );
-
-// app.use("/stream", express.static("hls"));
-
-// app.listen(5000, () => {
-//   console.log("Server running on port 5000");
-// });
-
-// upload-service/index.ts
 import "dotenv/config";
 import express, { Request, Response } from "express";
 import multer from "multer";
+import cors from "cors";
 import { uploadToStorage } from "./shared/s3";
 import { getPrisma, prisma } from "./config/prisma";
 import { connectProducer, sendMessage } from "./kafka/producer";
 import movieRoutes from "./routes/movieRoutes";
 import seriesRoutes from "./routes/seriesRoutes";
 import continueWatchingRoutes from "./routes/continueWatchingRoutes";
-import cors from "cors";
-import { searchMovies } from "./Controller/SearchController";
 
 // Log environment variables on startup
 console.log("🌍 Environment Configuration:");
@@ -88,9 +36,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check endpoint for ECS
+app.get("/health", (req: Request, res: Response) => {
+  res
+    .status(200)
+    .json({ status: "healthy", timestamp: new Date().toISOString() });
+});
+
+// API Routes
 app.use("/api/movies", movieRoutes);
 app.use("/api/series", seriesRoutes);
 app.use("/api/v1/continue-watching", continueWatchingRoutes);
+
+// Test endpoint
 app.post("/api/test", async (req, res) => {
   try {
     const { email, password, name } = req.body || {};
@@ -110,6 +68,8 @@ app.post("/api/test", async (req, res) => {
     res.status(500).json({ error: error?.message || "Internal server error" });
   }
 });
+
+// Upload endpoint
 app.post("/upload", upload.single("video"), async (req, res) => {
   try {
     const { title, genre } = req.body;
@@ -142,13 +102,44 @@ app.post("/upload", upload.single("video"), async (req, res) => {
     res.status(500).send("Upload failed");
   }
 });
+
+// Static routes
+app.use("/stream", express.static("hls"));
+
+// Welcome endpoints
 app.get("/", (req: Request, res: Response) => {
   res.send("Hello from the upload service!");
 });
+
 app.get("/velocity", (req: Request, res: Response) => {
   res.send("Hello from the velocity endpoint , watch the videos without ads!");
 });
-app.listen(5000, async () => {
-  await connectProducer();
-  console.log("Upload service running on port 5000");
+
+const PORT = process.env.PORT || 5000;
+
+const server = app.listen(PORT, async () => {
+  try {
+    await connectProducer();
+    console.log(`✅ Upload service running on port ${PORT}`);
+  } catch (err) {
+    console.error("Failed to connect Kafka producer:", err);
+    process.exit(1);
+  }
+});
+
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received, shutting down gracefully");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
 });
